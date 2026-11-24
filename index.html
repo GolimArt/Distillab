@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#4f46e5" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Distillab — مختبر التقطير السردي</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- مكتبات المتصفح لقراءة EPUB/PDF/DOCX وبناء DOCX -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>📚 Distillab Web App</h1>
+      <p>مختبر التحليل المعماري وتقطير الروايات (DOCX + Markdown + القسم 10)</p>
+    </div>
+    <div class="badges">
+      <span id="driveStatusBadge" class="badge">Drive: غير مربوط</span>
+      <span id="wakeLockBadge" class="badge">منع إطفاء الشاشة: جاهز</span>
+    </div>
+  </header>
+
+  <nav class="tabs-nav">
+    <button class="tab-btn active" data-tab="tab-run">1. التشغيل والمتابعة</button>
+    <button class="tab-btn" data-tab="tab-import">2. استيراد Drive ورفع</button>
+    <button class="tab-btn" data-tab="tab-library">3. المكتبة والبحث</button>
+    <button class="tab-btn" data-tab="tab-settings">4. الإعدادات والمفاتيح</button>
+    <button class="tab-btn" data-tab="tab-exports">5. المخرجات والتنزيل</button>
+  </nav>
+
+  <main class="container">
+    <!-- التبويب 1: التشغيل -->
+    <section id="tab-run" class="tab-panel active">
+      <div class="card">
+        <h2>لوحة التشغيل والتحكم</h2>
+        <div class="grid-2">
+          <div>
+            <label for="runLimit">حد الروايات في هذه الدفعة (0 = الكل)</label>
+            <input id="runLimit" type="number" value="10" min="0" />
+          </div>
+          <div>
+            <label for="runLens">العدسة المستهدفة</label>
+            <select id="runLens">
+              <option value="all">الكل</option>
+            </select>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button id="btnFullCycle" class="btn primary">🚀 تشغيل دورة كاملة (فرز + تقطير + قسم 10 + توليد المخرجات)</button>
+          <button id="btnStopRun" class="btn danger">⏹️ إيقاف آمن بعد الخطوة الحالية</button>
+        </div>
+        <div class="btn-row">
+          <button id="btnScout" class="btn">1️⃣ الفرز الذكي فقط</button>
+          <button id="btnDistill" class="btn">2️⃣ التقطير / الاستئناف</button>
+          <button id="btnMeta" class="btn">3️⃣ القسم 10 (التوليف الهرمي)</button>
+          <button id="btnExport" class="btn success">4️⃣ توليد المخرجات + التنظيف</button>
+        </div>
+        <div class="progress-wrap"><div id="progressBarFill" class="progress-fill"></div></div>
+        <div id="progressLabel" style="font-size:0.84rem;color:#a5b4fc;">جاهز.</div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>سجل العمليات المباشر</h3>
+          <div id="runLog" class="log-area"></div>
+        </div>
+        <div class="card">
+          <h3>إحصائيات المكتبة (IndexedDB)</h3>
+          <pre id="statsBox" class="log-area" style="font-family:inherit;"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- التبويب 2: الاستيراد -->
+    <section id="tab-import" class="tab-panel">
+      <div class="card">
+        <h2>أولاً: الاستيراد المباشر من Google Drive</h2>
+        <div class="grid-2">
+          <div>
+            <label for="drvSearchInput">بحث باسم مجلد في Drive (اختياري)</label>
+            <input id="drvSearchInput" type="text" placeholder="اتركه فارغاً لجلب المجلدات" />
+          </div>
+          <div>
+            <label for="drvFolderUrlInput">أو الصق رابط/معرّف المجلد مباشرة</label>
+            <input id="drvFolderUrlInput" type="text" placeholder="https://drive.google.com/drive/folders/..." />
+          </div>
+        </div>
+        <div class="btn-row">
+          <button id="btnDrvListFolders" class="btn">🔄 جلب مجلدات Drive</button>
+          <button id="btnDrvListFiles" class="btn primary">📂 عرض الروايات داخل المجلد</button>
+        </div>
+        <div style="margin-top:10px;">
+          <label for="drvFolderSelect">المجلدات المتاحة</label>
+          <select id="drvFolderSelect"></select>
+        </div>
+        <div id="drvFilesList" class="checklist">لم يتم عرض ملفات بعد.</div>
+        <div class="btn-row">
+          <button id="btnDrvSelAll" class="btn">✅ تحديد الكل</button>
+          <button id="btnDrvSelNone" class="btn">❎ إلغاء التحديد</button>
+          <button id="btnDrvImport" class="btn success">📥 استيراد المحدد إلى قائمة التحليل</button>
+        </div>
+        <pre id="drvStatusBox" class="log-area" style="min-height:70px;margin-top:10px;"></pre>
+      </div>
+
+      <div class="card">
+        <h2>ثانياً: أو اختيار ملفات من جهازك/هاتفك</h2>
+        <label for="localFileInput">اختر روايات (EPUB / PDF / DOCX / TXT)</label>
+        <input id="localFileInput" type="file" multiple accept=".epub,.pdf,.docx,.txt" />
+        <div class="btn-row">
+          <button id="btnLocalImport" class="btn primary">⬆️ قراءة وحفظ في قائمة التحليل</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- التبويب 3: المكتبة والبحث -->
+    <section id="tab-library" class="tab-panel">
+      <div class="card">
+        <h2>إدارة المكتبة</h2>
+        <div class="btn-row">
+          <button id="btnRefreshLib" class="btn">🔄 تحديث الجدول</button>
+          <button id="btnRetryErrors" class="btn warn">♻️ إعادة تفعيل الروايات المتعطلة</button>
+          <button id="btnClearAllData" class="btn danger">🗑️ مسح بيانات المتصفح المحلية</button>
+        </div>
+        <div class="table-wrap" style="margin-top:12px;">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>العنوان</th>
+                <th>السلسلة</th>
+                <th>مجلد</th>
+                <th>العدسة</th>
+                <th>الكلمات</th>
+                <th>الحالة</th>
+                <th>الأرشفة/الحذف</th>
+              </tr>
+            </thead>
+            <tbody id="libTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>🔍 بحث متقاطع في كل الروايات المحللة (بدون استهلاك API)</h3>
+        <div class="grid-2">
+          <input id="searchKwInput" type="text" placeholder="مثال: السم، حجة غياب، ابتزاز، قناع..." />
+          <button id="btnSearchVault" class="btn primary" style="width:max-content;">بحث فوري</button>
+        </div>
+        <pre id="searchResultsBox" class="log-area" style="margin-top:10px;"></pre>
+      </div>
+    </section>
+
+    <!-- التبويب 4: الإعدادات -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="card">
+        <h2>إعدادات الذكاء الاصطناعي والنماذج</h2>
+        <div class="grid-2">
+          <div>
+            <label for="cfgProvider">المزود النشط</label>
+            <select id="cfgProvider">
+              <option value="gemini">Google AI Studio (Gemini)</option>
+              <option value="openai_compatible">OpenAI-Compatible (Groq / OpenRouter / OpenAI)</option>
+            </select>
+          </div>
+          <div>
+            <label for="cfgBaseUrl">رابط Base URL</label>
+            <input id="cfgBaseUrl" type="text" />
+          </div>
+        </div>
+        <div class="grid-3" style="margin-top:10px;">
+          <div>
+            <label for="cfgScoutModel">نموذج الفرز (Scout)</label>
+            <input id="cfgScoutModel" type="text" />
+          </div>
+          <div>
+            <label for="cfgDistillModel">نموذج التقطير (Distill)</label>
+            <input id="cfgDistillModel" type="text" />
+          </div>
+          <div>
+            <label for="cfgMetaModel">نموذج القسم 10 (Meta)</label>
+            <input id="cfgMetaModel" type="text" />
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <label for="cfgApiKeys">مفاتيح API (مفتاح في كل سطر للتدوير التلقائي)</label>
+          <textarea id="cfgApiKeys" rows="3" placeholder="AIza..."></textarea>
+        </div>
+        <div class="grid-3" style="margin-top:10px;">
+          <div>
+            <label for="cfgMinDelay">الفاصل الزمني بين الطلبات (ثانية)</label>
+            <input id="cfgMinDelay" type="number" step="0.5" min="0" />
+          </div>
+          <div>
+            <label for="cfgChunkMode">وضع السياق</label>
+            <select id="cfgChunkMode">
+              <option value="smart_chunks">تقطيع ذكي (للباقة المجانية)</option>
+              <option value="full_novel">رواية كاملة (للمدفوع/السريع)</option>
+            </select>
+          </div>
+          <div>
+            <label for="cfgChunkMaxWords">حد المقطع بالكلمات</label>
+            <input id="cfgChunkMaxWords" type="number" min="5000" step="1000" />
+          </div>
+        </div>
+        <div class="grid-3" style="margin-top:10px;">
+          <div>
+            <label for="cfgExportMaxWords">حد التقسيم التلقائي للتصدير (كلمة)</label>
+            <input id="cfgExportMaxWords" type="number" min="50000" step="10000" />
+          </div>
+          <div>
+            <label for="cfgMetaBatchSize">عدد الروايات بحزمة القسم 10</label>
+            <input id="cfgMetaBatchSize" type="number" min="2" max="20" />
+          </div>
+          <div>
+            <label for="cfgMutationTarget">هدف التحوير 70% المخصص (اختياري)</label>
+            <input id="cfgMutationTarget" type="text" placeholder="اتركه فارغاً للافتراضي" />
+          </div>
+        </div>
+        <div class="grid-2" style="margin-top:10px;">
+          <div>
+            <label for="cfgCleanupAction">إجراء ما بعد اكتمال التحليل</label>
+            <select id="cfgCleanupAction">
+              <option value="archive_compressed">أرشفة النص المضغوط (.txt.zip) في Drive وإزالة الخام من الذاكرة</option>
+              <option value="keep">إبقاء النص الخام في الذاكرة المحلية</option>
+              <option value="permanent_delete">حذف النص الخام من الذاكرة المحلية نهائياً بعد الاكتمال</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:flex-end;">
+            <label class="checkbox-inline">
+              <input id="cfgDeleteDriveSource" type="checkbox" />
+              <span>نقل الملف الأصلي في Google Drive لسلة المهملات بعد اكتمال الرواية/السلسلة</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>ربط Google Drive الدائم (مخزون محلياً بمتصفحك فقط)</h2>
+        <div class="grid-3">
+          <div>
+            <label for="cfgGdriveClientId">GDRIVE_CLIENT_ID</label>
+            <input id="cfgGdriveClientId" type="password" />
+          </div>
+          <div>
+            <label for="cfgGdriveClientSecret">GDRIVE_CLIENT_SECRET</label>
+            <input id="cfgGdriveClientSecret" type="password" />
+          </div>
+          <div>
+            <label for="cfgGdriveRefreshToken">GDRIVE_REFRESH_TOKEN</label>
+            <input id="cfgGdriveRefreshToken" type="password" />
+          </div>
+        </div>
+        <div class="btn-row">
+          <button id="btnSaveSettings" class="btn primary">💾 حفظ الإعدادات محلياً</button>
+          <button id="btnSyncPushDrive" class="btn success">☁️ مزامنة قاعدة البيانات إلى Drive</button>
+          <button id="btnSyncPullDrive" class="btn warn">⬇️ استعادة قاعدة البيانات من Drive</button>
+          <button id="btnExportBackupJson" class="btn">📦 تنزيل نسخة احتياطية (JSON)</button>
+        </div>
+        <div style="margin-top:10px;">
+          <label for="importBackupInput">أو استعادة نسخة احتياطية من ملف JSON:</label>
+          <input id="importBackupInput" type="file" accept=".json" />
+        </div>
+        <pre id="settingsStatus" class="log-area" style="min-height:50px;margin-top:10px;"></pre>
+      </div>
+    </section>
+
+    <!-- التبويب 5: المخرجات -->
+    <section id="tab-exports" class="tab-panel">
+      <div class="card">
+        <h2>المخرجات الجاهزة (MD لـ AI Studio + DOCX لـ Word + القسم 10)</h2>
+        <div class="btn-row">
+          <button id="btnRefreshExports" class="btn">🔄 تحديث القائمة</button>
+          <button id="btnUploadExportsDrive" class="btn primary">☁️ رفع كل المخرجات إلى Google Drive</button>
+        </div>
+        <div id="exportsListContainer" style="margin-top:12px;"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="lenses.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/readers.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/prompts.js"></script>
+  <script src="js/gdrive.js"></script>
+  <script src="js/exporters.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
